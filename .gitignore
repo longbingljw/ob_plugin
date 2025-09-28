@@ -1,0 +1,5 @@
+.cursor/
+include/
+japanese_ftparser/build/
+korean_ftparser/build/
+thai_ftparser/build/
