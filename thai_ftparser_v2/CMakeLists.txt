@@ -1,23 +1,26 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.22)
 
 # Set plugin name
-SET(PLUGIN_NAME japanese_ftparser)
+SET(PLUGIN_NAME thai_ftparser)
 
 # Source files
 SET(SOURCES
-    japanese_ftparser_main.cpp
-    japanese_jni_bridge.cpp
+    thai_ftparser_main.cpp
+    thai_jni_bridge.cpp
 )
 
 # Project configuration
 PROJECT(${PLUGIN_NAME}
-        DESCRIPTION "Japanese ftparser plugin JNI management"
+        DESCRIPTION "Thai ftparser plugin"
         HOMEPAGE_URL "https://open.oceanbase.com/"
         LANGUAGES CXX C ASM)
 
 # Find required packages
 FIND_PACKAGE(ObPlugin REQUIRED)
 FIND_PACKAGE(JNI REQUIRED COMPONENTS JVM)
+
+# Add common JNI library as a subdirectory
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../common/liboceanbase_jni_common build_common_jni_lib)
 
 # Use OB_ADD_PLUGIN macro (provided by ObPlugin)
 OB_ADD_PLUGIN(${PLUGIN_NAME}
@@ -55,11 +58,11 @@ SET_TARGET_PROPERTIES(${PLUGIN_NAME} PROPERTIES
 )
 
 # Add custom command to ensure common library is built first
-ADD_CUSTOM_TARGET(build_common_jni_lib
+ADD_CUSTOM_TARGET(build_common_jni_lib_thai
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_SOURCE_DIR}/../common/liboceanbase_jni_common/build --parallel
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../common/liboceanbase_jni_common
-    COMMENT "Building common JNI library"
+    COMMENT "Building common JNI library for Thai parser"
 )
 
 # Make plugin depend on common library
-ADD_DEPENDENCIES(${PLUGIN_NAME} build_common_jni_lib)
+ADD_DEPENDENCIES(${PLUGIN_NAME} build_common_jni_lib_thai)

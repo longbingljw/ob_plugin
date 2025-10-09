@@ -1,27 +1,29 @@
 /**
  * Copyright (c) 2023 OceanBase
- * Japanese Fulltext Parser Plugin
+ * Thai Fulltext Parser Plugin
  */
 
-#include "japanese_jni_bridge.h"
+#include "thai_jni_bridge.h"
 #include <iostream>
 #include <sstream>
 #include <cstdlib>
 #include <cstring>
 #include <new>
 
+using namespace oceanbase::jni;
+
 namespace oceanbase {
-namespace japanese_ftparser {
+namespace thai_ftparser {
 
 // Configuration implementation
-JapaneseJNIBridgeConfig::JapaneseJNIBridgeConfig() 
-    : segmenter_class_name("JapaneseSegmenter")
+ThaiJNIBridgeConfig::ThaiJNIBridgeConfig() 
+    : segmenter_class_name("RealThaiSegmenter")
     , segment_method_name("segment")
     , jvm_max_heap_mb(512)
     , jvm_init_heap_mb(128) {
     
     // Check environment variable first, then use default paths
-    const char* env_classpath = std::getenv("JAPANESE_PARSER_CLASSPATH");
+    const char* env_classpath = std::getenv("THAI_PARSER_CLASSPATH");
     if (env_classpath && strlen(env_classpath) > 0) {
         java_class_path = env_classpath;
     } else {
@@ -44,9 +46,9 @@ JapaneseJNIBridgeConfig::JapaneseJNIBridgeConfig()
     }
 }
 
-// JapaneseJNIBridge implementation
-JapaneseJNIBridge::JapaneseJNIBridge() 
-    : plugin_name_("japanese_ftparser")
+// ThaiJNIBridge implementation
+ThaiJNIBridge::ThaiJNIBridge() 
+    : plugin_name_("thai_ftparser")
     , is_initialized_(false)
     , segmenter_class_(nullptr)
     , constructor_method_(nullptr)
@@ -54,7 +56,7 @@ JapaneseJNIBridge::JapaneseJNIBridge()
     clear_error();
 }
 
-JapaneseJNIBridge::~JapaneseJNIBridge() {
+ThaiJNIBridge::~ThaiJNIBridge() {
     if (is_initialized_) {
         // Unregister from global JVM manager
         oceanbase::jni::GlobalJVMManager::unregister_plugin(plugin_name_);
@@ -62,7 +64,7 @@ JapaneseJNIBridge::~JapaneseJNIBridge() {
     }
 }
 
-int JapaneseJNIBridge::initialize() {
+int ThaiJNIBridge::initialize() {
     std::lock_guard<std::mutex> lock(bridge_mutex_);
     
     if (is_initialized_) {
@@ -75,11 +77,11 @@ int JapaneseJNIBridge::initialize() {
     oceanbase::jni::GlobalJVMManager::register_plugin(plugin_name_);
     
     // Create scoped JNI environment for initialization
-    oceanbase::jni::ScopedJNIEnvironment jni_env(plugin_name_, config_.java_class_path, 
-                               config_.jvm_max_heap_mb, config_.jvm_init_heap_mb);
+    oceanbase::jni::ScopedJNIEnvironment jni_env(plugin_name_, config_.java_class_path,
+                                                  config_.jvm_max_heap_mb, config_.jvm_init_heap_mb);
     
     if (!jni_env) {
-        set_error(OBP_PLUGIN_ERROR, "Failed to acquire JNI environment for initialization");
+        set_error(OBP_PLUGIN_ERROR, "Failed to acquire JNI environment for Thai parser initialization");
         oceanbase::jni::GlobalJVMManager::unregister_plugin(plugin_name_);
         return OBP_PLUGIN_ERROR;
     }
@@ -92,301 +94,276 @@ int JapaneseJNIBridge::initialize() {
     }
     
     is_initialized_ = true;
-    OBP_LOG_INFO("Simplified JNI Bridge initialized successfully");
+    std::cout << "[INFO] Thai JNI Bridge initialized successfully" << std::endl;
     return OBP_SUCCESS;
 }
 
-int JapaneseJNIBridge::segment(const std::string& text, std::vector<std::string>& tokens) {
+int ThaiJNIBridge::segment(const std::string& text, std::vector<std::string>& tokens) {
     if (!is_initialized_) {
-        set_error(OBP_PLUGIN_ERROR, "Bridge not initialized");
+        set_error(OBP_PLUGIN_ERROR, "Thai JNI Bridge not initialized");
         return OBP_PLUGIN_ERROR;
     }
     
-    clear_error();
-    
-    // Create scoped JNI environment for this operation
+    // Create scoped JNI environment for segmentation
     oceanbase::jni::ScopedJNIEnvironment jni_env(plugin_name_);
     
     if (!jni_env) {
-        set_error(OBP_PLUGIN_ERROR, "Failed to acquire JNI environment for segmentation");
+        set_error(OBP_PLUGIN_ERROR, "Failed to acquire JNI environment for Thai segmentation");
         return OBP_PLUGIN_ERROR;
     }
     
     return do_segment(jni_env.get(), text, tokens);
 }
 
-int JapaneseJNIBridge::load_java_classes(JNIEnv* env) {
-    if (!env) {
-        set_error(OBP_PLUGIN_ERROR, "JNI environment is null");
-        return OBP_PLUGIN_ERROR;
-    }
-    
-    // Find segmenter class
-    segmenter_class_ = env->FindClass(config_.segmenter_class_name.c_str());
+int ThaiJNIBridge::load_java_classes(JNIEnv* env) {
     std::string error_msg;
+    
+    // Load Thai segmenter class
+    segmenter_class_ = env->FindClass(config_.segmenter_class_name.c_str());
     if (!segmenter_class_ || oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        std::string msg = "Cannot find Java class: " + config_.segmenter_class_name;
-        if (!error_msg.empty()) {
-            msg += " (" + error_msg + ")";
-        }
-        set_error(OBP_PLUGIN_ERROR, msg);
+        set_error(OBP_PLUGIN_ERROR, "Failed to find Thai segmenter class '" + 
+                  config_.segmenter_class_name + "': " + error_msg);
         return OBP_PLUGIN_ERROR;
     }
     
     // Make it a global reference to prevent GC
     segmenter_class_ = (jclass)env->NewGlobalRef(segmenter_class_);
     if (!segmenter_class_) {
-        set_error(OBP_PLUGIN_ERROR, "Failed to create global reference for segmenter class");
+        set_error(OBP_PLUGIN_ERROR, "Failed to create global reference for Thai segmenter class");
         return OBP_PLUGIN_ERROR;
     }
     
     // Get constructor method ID
     constructor_method_ = env->GetMethodID(segmenter_class_, "<init>", "()V");
     if (!constructor_method_ || oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        std::string msg = "Cannot find constructor for segmenter class";
-        if (!error_msg.empty()) {
-            msg += " (" + error_msg + ")";
-        }
-        set_error(OBP_PLUGIN_ERROR, msg);
+        set_error(OBP_PLUGIN_ERROR, "Failed to find Thai segmenter constructor: " + error_msg);
         return OBP_PLUGIN_ERROR;
     }
     
     // Get segment method ID
-    std::string segment_signature = "(Ljava/lang/String;)[Ljava/lang/String;";
-    segment_method_ = env->GetMethodID(segmenter_class_, 
-                                     config_.segment_method_name.c_str(), 
-                                     segment_signature.c_str());
+    segment_method_ = env->GetMethodID(segmenter_class_, config_.segment_method_name.c_str(), 
+                                      "(Ljava/lang/String;)[Ljava/lang/String;");
     if (!segment_method_ || oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        std::string msg = "Cannot find method: " + config_.segment_method_name + 
-                         " with signature: " + segment_signature;
-        if (!error_msg.empty()) {
-            msg += " (" + error_msg + ")";
-        }
-        set_error(OBP_PLUGIN_ERROR, msg);
+        set_error(OBP_PLUGIN_ERROR, "Failed to find Thai segment method '" + 
+                  config_.segment_method_name + "': " + error_msg);
         return OBP_PLUGIN_ERROR;
     }
     
-    OBP_LOG_INFO("Java classes loaded successfully");
+    std::cout << "[INFO] Thai Java classes loaded successfully" << std::endl;
     return OBP_SUCCESS;
 }
 
-int JapaneseJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vector<std::string>& tokens) {
-    if (!env) {
-        set_error(OBP_PLUGIN_ERROR, "JNI environment is null");
-        return OBP_PLUGIN_ERROR;
-    }
+int ThaiJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vector<std::string>& tokens) {
+    std::string error_msg;
+    tokens.clear();
     
-    // Push local frame for automatic cleanup
+    // Push local frame for automatic local reference cleanup
     if (env->PushLocalFrame(64) < 0) {
-        set_error(OBP_PLUGIN_ERROR, "Failed to push JNI local reference frame");
+        set_error(OBP_PLUGIN_ERROR, "Failed to push local frame for Thai segmentation");
         return OBP_PLUGIN_ERROR;
     }
     
     // Convert C++ string to Java string
     jstring jtext = oceanbase::jni::JNIUtils::cpp_string_to_jstring(env, text);
     if (!jtext) {
-        set_error(OBP_PLUGIN_ERROR, "Failed to convert text to Java string");
         env->PopLocalFrame(nullptr);
+        set_error(OBP_PLUGIN_ERROR, "Failed to convert text to Java string for Thai segmentation");
         return OBP_PLUGIN_ERROR;
     }
     
-    // Create a fresh Java segmenter instance for this call
+    // Create Thai segmenter instance
     jobject local_segmenter = env->NewObject(segmenter_class_, constructor_method_);
-    std::string error_msg;
     if (!local_segmenter || oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        std::string msg = "Failed to create local segmenter instance";
-        if (!error_msg.empty()) {
-            msg += " (" + error_msg + ")";
-        }
-        set_error(OBP_PLUGIN_ERROR, msg);
         env->PopLocalFrame(nullptr);
+        set_error(OBP_PLUGIN_ERROR, "Failed to create Thai segmenter instance: " + error_msg);
         return OBP_PLUGIN_ERROR;
     }
     
-    // Call Java segmentation method
-    jobjectArray jresult = (jobjectArray)env->CallObjectMethod(
-        local_segmenter, segment_method_, jtext);
+    std::cout << "=== OCEANBASE JNI CALL === Segmenting Thai text with Lucene: \"" 
+              << text.substr(0, std::min(text.length(), size_t(100))) << "\" (length: " << text.length() << ")" << std::endl;
     
-    // Check for Java exceptions
+    // Call segment method
+    jobjectArray jresult = (jobjectArray)env->CallObjectMethod(local_segmenter, segment_method_, jtext);
     if (oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        std::string msg = "Java segmentation method threw exception";
-        if (!error_msg.empty()) {
-            msg += " (" + error_msg + ")";
-        }
-        set_error(OBP_PLUGIN_ERROR, msg);
         env->PopLocalFrame(nullptr);
+        set_error(OBP_PLUGIN_ERROR, "Thai segmentation failed: " + error_msg);
         return OBP_PLUGIN_ERROR;
     }
     
     if (!jresult) {
-        set_error(OBP_PLUGIN_ERROR, "Java segmentation method returned null");
         env->PopLocalFrame(nullptr);
+        set_error(OBP_PLUGIN_ERROR, "Thai segmentation returned null result");
         return OBP_PLUGIN_ERROR;
     }
     
-    // Convert Java string array to C++ vector
+    // Convert result to C++ vector
     int ret = oceanbase::jni::JNIUtils::jstring_array_to_cpp_vector(env, jresult, tokens);
-    if (ret != 0) {
-        set_error(OBP_PLUGIN_ERROR, "Failed to convert Java result to C++ vector");
-        env->PopLocalFrame(nullptr);
-        return OBP_PLUGIN_ERROR;
-    }
     
-    // Pop local frame (automatic cleanup)
+    // Pop local frame to clean up local references
     env->PopLocalFrame(nullptr);
     
-    OBP_LOG_INFO("Segmentation completed, got %zu tokens", tokens.size());
+    if (ret != OBP_SUCCESS) {
+        set_error(OBP_PLUGIN_ERROR, "Failed to convert Thai segmentation result to C++ vector");
+        return ret;
+    }
+    
+    std::cout << "=== OCEANBASE JNI RESULT === Thai segmentation result: [";
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        if (i > 0) std::cout << ", ";
+        std::cout << tokens[i];
+    }
+    std::cout << "]" << std::endl;
+    
     return OBP_SUCCESS;
 }
 
-void JapaneseJNIBridge::set_error(int code, const std::string& message) {
-    last_error_.error_code = code;
-    last_error_.error_message = message;
-    std::cout << "[ERROR][JapaneseJNIBridge] " << message << std::endl;
+void ThaiJNIBridge::set_error(int code, const std::string& message) {
+    last_error_code_ = code;
+    last_error_message_ = message;
+    std::cout << "[ERROR][ThaiJNIBridge] " << message << std::endl;
 }
 
-void JapaneseJNIBridge::clear_error() {
-    last_error_.error_code = OBP_SUCCESS;
-    last_error_.error_message.clear();
-    last_error_.java_exception.clear();
+void ThaiJNIBridge::clear_error() {
+    last_error_code_ = OBP_SUCCESS;
+    last_error_message_.clear();
 }
 
-// JapaneseJNIBridgeManager implementation
-JapaneseJNIBridgeManager& JapaneseJNIBridgeManager::get_instance() {
-    static JapaneseJNIBridgeManager instance;
+// ThaiJNIBridgeManager implementation
+ThaiJNIBridgeManager& ThaiJNIBridgeManager::get_instance() {
+    static ThaiJNIBridgeManager instance;
     return instance;
 }
 
-std::shared_ptr<JapaneseJNIBridge> JapaneseJNIBridgeManager::get_bridge() {
+std::shared_ptr<ThaiJNIBridge> ThaiJNIBridgeManager::get_bridge() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!bridge_) {
-        bridge_ = std::make_shared<JapaneseJNIBridge>();
+        bridge_ = std::make_shared<ThaiJNIBridge>();
     }
     return bridge_;
 }
 
-int JapaneseJNIBridgeManager::initialize() {
+int ThaiJNIBridgeManager::initialize() {
     auto bridge = get_bridge();
     return bridge ? bridge->initialize() : OBP_PLUGIN_ERROR;
 }
 
 // Plugin parser structure
-struct JapaneseParserState {
+struct ThaiParserState {
     std::vector<std::string> tokens;
     size_t current_token_index;
     
-    JapaneseParserState() : current_token_index(0) {}
+    ThaiParserState() : current_token_index(0) {}
 };
 
-} // namespace japanese_ftparser
+} // namespace thai_ftparser
 } // namespace oceanbase
 
 // Plugin interface implementation
 extern "C" {
 
-int japanese_ftparser_init(ObPluginParamPtr param) {
+int thai_ftparser_init(ObPluginParamPtr param) {
     if (!param) {
         return OBP_INVALID_ARGUMENT;
     }
     
     // Don't initialize JVM here - do it lazily on first use (scan_begin)
     // This avoids issues with classpath when Observer is starting up
-    std::cout << "[INFO] Japanese FTParser plugin registered (JVM will be initialized on first use)" << std::endl;
+    std::cout << "[INFO] Thai FTParser plugin registered (JVM will be initialized on first use)" << std::endl;
     return OBP_SUCCESS;
 }
 
-int japanese_ftparser_deinit(ObPluginParamPtr param) {
+int thai_ftparser_deinit(ObPluginParamPtr param) {
     if (!param) {
         return OBP_INVALID_ARGUMENT;
     }
     
-    std::cout << "[INFO] Japanese FTParser deinitialized" << std::endl;
+    std::cout << "[INFO] Thai FTParser deinitialized" << std::endl;
     return OBP_SUCCESS;
 }
 
-int japanese_ftparser_scan_begin(ObPluginFTParserParamPtr param) {
+int thai_ftparser_scan_begin(ObPluginFTParserParamPtr param) {
     if (!param) {
         return OBP_INVALID_ARGUMENT;
     }
     
     // Lazy initialization: initialize JVM on first actual use
-    auto& manager = oceanbase::japanese_ftparser::JapaneseJNIBridgeManager::get_instance();
+    auto& manager = oceanbase::thai_ftparser::ThaiJNIBridgeManager::get_instance();
     int ret = manager.initialize();
     if (ret != OBP_SUCCESS) {
-        std::cout << "[ERROR] Failed to initialize JNI bridge on first use" << std::endl;
+        std::cout << "[ERROR] Failed to initialize Thai JNI bridge on first use" << std::endl;
         return ret;
     }
     
     // Create parser instance
-    oceanbase::japanese_ftparser::JapaneseParserState* jp = new (std::nothrow) oceanbase::japanese_ftparser::JapaneseParserState();
-    if (!jp) {
+    oceanbase::thai_ftparser::ThaiParserState* tp = new (std::nothrow) oceanbase::thai_ftparser::ThaiParserState();
+    if (!tp) {
         return OBP_ALLOCATE_MEMORY_FAILED;
     }
     
     // Get text to parse
-    const char* doc = obp_ftparser_fulltext(param);
-    int64_t length = obp_ftparser_fulltext_length(param);
+    const char* fulltext = obp_ftparser_fulltext(param);
+    int64_t fulltext_len = obp_ftparser_fulltext_length(param);
     
-    if (!doc || length <= 0) {
-        delete jp;
+    if (!fulltext || fulltext_len <= 0) {
+        delete tp;
         return OBP_INVALID_ARGUMENT;
     }
     
-    std::string text(doc, length);
+    std::string text(fulltext, fulltext_len);
     
-    // Segment text using simplified JNI bridge
+    // Perform segmentation
     auto bridge = manager.get_bridge();
     if (!bridge) {
-        delete jp;
+        delete tp;
         return OBP_PLUGIN_ERROR;
     }
     
-    ret = bridge->segment(text, jp->tokens);
+    ret = bridge->segment(text, tp->tokens);
     if (ret != OBP_SUCCESS) {
-        const auto& error = bridge->get_last_error();
-        std::cout << "[ERROR] Segmentation failed: " << error.error_message << std::endl;
-        delete jp;
+        std::cout << "[ERROR] Thai segmentation failed: " << bridge->get_last_error_message() << std::endl;
+        delete tp;
         return ret;
     }
     
-    jp->current_token_index = 0;
+    std::cout << "[INFO][PLUGIN]do_segment (thai_jni_bridge.cpp:XXX) Segmentation completed, got " 
+              << tp->tokens.size() << " tokens" << std::endl;
     
-    // Store parser instance in user data
-    obp_ftparser_set_user_data(param, jp);
+    // Store parser state
+    obp_ftparser_set_user_data(param, tp);
     
-    std::cout << "[INFO] Scan begin completed, got " << jp->tokens.size() << " tokens" << std::endl;
+    std::cout << "[INFO] Thai scan begin completed, got " << tp->tokens.size() << " tokens" << std::endl;
     return OBP_SUCCESS;
 }
 
-int japanese_ftparser_scan_end(ObPluginFTParserParamPtr param) {
+int thai_ftparser_scan_end(ObPluginFTParserParamPtr param) {
     if (!param) {
         return OBP_INVALID_ARGUMENT;
     }
     
-    oceanbase::japanese_ftparser::JapaneseParserState* jp = (oceanbase::japanese_ftparser::JapaneseParserState*)obp_ftparser_user_data(param);
-    if (jp) {
-        delete jp;
+    oceanbase::thai_ftparser::ThaiParserState* tp = (oceanbase::thai_ftparser::ThaiParserState*)obp_ftparser_user_data(param);
+    if (tp) {
+        delete tp;
         obp_ftparser_set_user_data(param, nullptr);
     }
     
     return OBP_SUCCESS;
 }
 
-int japanese_ftparser_next_token(ObPluginFTParserParamPtr param, char **word, int64_t *word_len, int64_t *char_cnt, int64_t *word_freq) {
+int thai_ftparser_next_token(ObPluginFTParserParamPtr param, char **word, int64_t *word_len, int64_t *char_cnt, int64_t *word_freq) {
     if (!param || !word || !word_len || !char_cnt || !word_freq) {
         return OBP_INVALID_ARGUMENT;
     }
     
-    oceanbase::japanese_ftparser::JapaneseParserState* jp = (oceanbase::japanese_ftparser::JapaneseParserState*)obp_ftparser_user_data(param);
-    if (!jp) {
+    oceanbase::thai_ftparser::ThaiParserState* tp = (oceanbase::thai_ftparser::ThaiParserState*)obp_ftparser_user_data(param);
+    if (!tp) {
         return OBP_PLUGIN_ERROR;
     }
     
-    if (jp->current_token_index >= jp->tokens.size()) {
+    if (tp->current_token_index >= tp->tokens.size()) {
         return OBP_ITER_END;
     }
     
-    const std::string& token = jp->tokens[jp->current_token_index++];
+    const std::string& token = tp->tokens[tp->current_token_index++];
     
     // Set word properties
     *word = const_cast<char*>(token.c_str());
@@ -423,16 +400,16 @@ int japanese_ftparser_next_token(ObPluginFTParserParamPtr param, char **word, in
     return OBP_SUCCESS;
 }
 
-int japanese_ftparser_get_add_word_flag(uint64_t *flag) {
+int thai_ftparser_get_add_word_flag(uint64_t *flag) {
     if (!flag) {
         return OBP_INVALID_ARGUMENT;
     }
     
-    // Set flags for Japanese language processing (same as original plugin)
-    // Disable problematic filters that may reject Japanese characters
-    *flag = OBP_FTPARSER_AWF_CASEDOWN      // Convert to lowercase (safe for Japanese)
-            | OBP_FTPARSER_AWF_GROUPBY_WORD; // Group identical words (safe for Japanese)
-    // Disabled: OBP_FTPARSER_AWF_MIN_MAX_WORD (may filter Japanese chars by length)
+    // Set flags for Thai language processing (same as original plugin)
+    // Disable problematic filters that may reject Thai characters
+    *flag = OBP_FTPARSER_AWF_CASEDOWN      // Convert to lowercase (safe for Thai)
+            | OBP_FTPARSER_AWF_GROUPBY_WORD; // Group identical words (safe for Thai)
+    // Disabled: OBP_FTPARSER_AWF_MIN_MAX_WORD (may filter Thai chars by length)
     // Disabled: OBP_FTPARSER_AWF_STOPWORD (may use inappropriate stopword list)
     
     return OBP_SUCCESS;
