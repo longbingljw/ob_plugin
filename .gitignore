@@ -4,5 +4,5 @@ japanese_ftparser/build/
 korean_ftparser/build/
 thai_ftparser/build/
 common/liboceanbase_jni_common/build/
-experimental_japanese_ftparser/build/
 userinput.py
+korean_ftparser_v2/build/

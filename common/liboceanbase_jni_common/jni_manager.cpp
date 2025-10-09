@@ -78,9 +78,10 @@ JavaVM* GlobalJVMManager::get_or_create_jvm(const std::string& classpath,
     JavaVMInitArgs vm_args;
     JavaVMOption options[5];
     
-    std::string classpath_option = "-Djava.class.path=" + classpath;
-    std::string max_heap_option = "-Xmx" + std::to_string(max_heap_mb) + "m";
-    std::string init_heap_option = "-Xms" + std::to_string(init_heap_mb) + "m";
+    // Create persistent copies of option strings to avoid dangling pointers
+    static std::string classpath_option = "-Djava.class.path=" + classpath;
+    static std::string max_heap_option = "-Xmx" + std::to_string(max_heap_mb) + "m";
+    static std::string init_heap_option = "-Xms" + std::to_string(init_heap_mb) + "m";
     
     options[0].optionString = const_cast<char*>(classpath_option.c_str());
     options[1].optionString = const_cast<char*>(max_heap_option.c_str());
@@ -282,29 +283,40 @@ ScopedJNIEnvironment::ScopedJNIEnvironment(const std::string& plugin_name,
                                           size_t init_heap_mb) 
     : env_(nullptr), plugin_name_(plugin_name), is_valid_(false) {
     
+    OBP_LOG_INFO("[%s] ScopedJNIEnvironment constructor called", plugin_name.c_str());
+    
     JavaVM* jvm = nullptr;
     
     if (!classpath.empty()) {
         // Create or get JVM with specified classpath
+        OBP_LOG_INFO("[%s] Creating/getting JVM with classpath", plugin_name.c_str());
         jvm = GlobalJVMManager::get_or_create_jvm(classpath, max_heap_mb, init_heap_mb);
     } else {
         // Use existing JVM
+        OBP_LOG_INFO("[%s] Using existing JVM", plugin_name.c_str());
         jvm = GlobalJVMManager::get_jvm();
     }
     
     if (jvm) {
+        OBP_LOG_INFO("[%s] Acquiring JNI environment", plugin_name.c_str());
         env_ = GlobalThreadManager::acquire_jni_env_for_plugin(jvm, plugin_name);
         is_valid_ = (env_ != nullptr);
+        OBP_LOG_INFO("[%s] ScopedJNIEnvironment %s", plugin_name.c_str(), is_valid_ ? "SUCCESS" : "FAILED");
+    } else {
+        OBP_LOG_ERROR("[%s] JVM is null, cannot acquire JNI environment", plugin_name.c_str());
     }
 }
 
 ScopedJNIEnvironment::~ScopedJNIEnvironment() {
+    OBP_LOG_INFO("[%s] ScopedJNIEnvironment destructor called", plugin_name_.c_str());
     if (env_) {
         JavaVM* jvm = GlobalJVMManager::get_jvm();
         if (jvm) {
+            OBP_LOG_INFO("[%s] Releasing JNI environment", plugin_name_.c_str());
             GlobalThreadManager::release_jni_env_for_plugin(jvm, plugin_name_);
         }
     }
+    OBP_LOG_INFO("[%s] ScopedJNIEnvironment destructor completed", plugin_name_.c_str());
 }
 
 jstring JNIUtils::cpp_string_to_jstring(JNIEnv* env, const std::string& str) {

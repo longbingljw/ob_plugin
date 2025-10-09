@@ -25,18 +25,21 @@ JapaneseJNIBridgeConfig::JapaneseJNIBridgeConfig()
     if (env_classpath && strlen(env_classpath) > 0) {
         java_class_path = env_classpath;
     } else {
-        // Default fallback paths with explicit JAR files
+        // Default fallback paths with explicit JAR files (include all language analyzers)
         java_class_path = "../java/lib/lucene-core-8.11.2.jar:"
                          "../java/lib/lucene-analyzers-common-8.11.2.jar:"
                          "../java/lib/lucene-analyzers-kuromoji-8.11.2.jar:"
+                         "../java/lib/lucene-analyzers-nori-8.11.2.jar:"
                          "../java:"
                          "./java/lib/lucene-core-8.11.2.jar:"
                          "./java/lib/lucene-analyzers-common-8.11.2.jar:"
                          "./java/lib/lucene-analyzers-kuromoji-8.11.2.jar:"
+                         "./java/lib/lucene-analyzers-nori-8.11.2.jar:"
                          "./java:"
                          "../../java/lib/lucene-core-8.11.2.jar:"
                          "../../java/lib/lucene-analyzers-common-8.11.2.jar:"
                          "../../java/lib/lucene-analyzers-kuromoji-8.11.2.jar:"
+                         "../../java/lib/lucene-analyzers-nori-8.11.2.jar:"
                          "../../java";
     }
 }
