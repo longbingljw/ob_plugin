@@ -1,38 +1,65 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.22)
 
-# TODO set `PLUGIN_NAME` to yours
+# Set plugin name
 SET(PLUGIN_NAME japanese_ftparser)
 
-# TODO The list below are your implementention files
+# Source files
 SET(SOURCES
-    ftparser_main.cpp
-    parser_core.cpp
-    jni_bridge.cpp)
-
-# You also should set the information below
-PROJECT(${PLUGIN_NAME}
-        DESCRIPTION "OceanBase Japanese ftparser plugin with JNI support"
-        HOMEPAGE_URL "https://open.oceanbase.com/"
-        LANGUAGES CXX C ASM) # remove CXX if this is a pure C project
-
-
-# Don't touch me
-FIND_PACKAGE(ObPlugin REQUIRED)
-
-# Find JNI for Java integration (only JVM, not AWT)
-FIND_PACKAGE(JNI REQUIRED COMPONENTS JVM)
-
-# Macro OB_ADD_PLUGIN is defined in ObPluginConfig.cmake which provided by oceanabse-plugin-devel
-OB_ADD_PLUGIN(${PLUGIN_NAME}
-  ${SOURCES}
+    japanese_ftparser_main.cpp
+    japanese_jni_bridge.cpp
 )
 
-# Add JNI include directories and libraries
-TARGET_INCLUDE_DIRECTORIES(${PLUGIN_NAME} PRIVATE ${JNI_INCLUDE_DIRS})
-TARGET_LINK_LIBRARIES(${PLUGIN_NAME} PRIVATE ${JNI_LIBRARIES})
+# Project configuration
+PROJECT(${PLUGIN_NAME}
+        DESCRIPTION "Japanese ftparser plugin with unified JNI management"
+        HOMEPAGE_URL "https://open.oceanbase.com/"
+        LANGUAGES CXX C ASM)
 
-# Set C++ standard for modern features
-SET_TARGET_PROPERTIES(${PLUGIN_NAME} PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
+# Find required packages
+FIND_PACKAGE(ObPlugin REQUIRED)
+FIND_PACKAGE(JNI REQUIRED COMPONENTS JVM)
 
-# Ensure symbols are exported
-SET_TARGET_PROPERTIES(${PLUGIN_NAME} PROPERTIES CXX_VISIBILITY_PRESET default)
+# Use OB_ADD_PLUGIN macro (provided by ObPlugin)
+OB_ADD_PLUGIN(${PLUGIN_NAME}
+    ${SOURCES}
+)
+
+# Add include directories for common JNI library
+TARGET_INCLUDE_DIRECTORIES(${PLUGIN_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common/liboceanbase_jni_common
+    ${JNI_INCLUDE_DIRS}
+)
+
+# Link libraries
+TARGET_LINK_LIBRARIES(${PLUGIN_NAME} PRIVATE 
+    ${JNI_LIBRARIES}
+)
+
+# Add link directory for common JNI library
+TARGET_LINK_DIRECTORIES(${PLUGIN_NAME} PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common/liboceanbase_jni_common/build
+)
+
+# Link the common JNI library
+TARGET_LINK_LIBRARIES(${PLUGIN_NAME} PRIVATE oceanbase_jni_common)
+
+# Set C++ standard and RPATH
+SET_TARGET_PROPERTIES(${PLUGIN_NAME} PROPERTIES 
+    CXX_STANDARD 11 
+    CXX_STANDARD_REQUIRED ON
+    CXX_VISIBILITY_PRESET default
+    # RPATH settings: use $ORIGIN to find libraries in the same directory as the plugin
+    BUILD_RPATH "\$ORIGIN:${CMAKE_CURRENT_SOURCE_DIR}/../common/liboceanbase_jni_common/build"
+    INSTALL_RPATH "\$ORIGIN"
+    BUILD_WITH_INSTALL_RPATH FALSE
+)
+
+# Add custom command to ensure common library is built first
+ADD_CUSTOM_TARGET(build_common_jni_lib
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_SOURCE_DIR}/../common/liboceanbase_jni_common/build --parallel
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../common/liboceanbase_jni_common
+    COMMENT "Building common JNI library"
+)
+
+# Make plugin depend on common library
+ADD_DEPENDENCIES(${PLUGIN_NAME} build_common_jni_lib)
