@@ -8,19 +8,10 @@
 #include <sstream>
 #include <cstring>
 
-// For logging - using simple cout for now, can be replaced with proper logging
-#define OBP_LOG_INFO(fmt, ...) \
-    do { \
-        printf("[INFO][JNI_COMMON] " fmt "\n", ##__VA_ARGS__); \
-        fflush(stdout); \
-    } while(0)
+// Use OceanBase plugin logging framework
+#include "oceanbase/ob_plugin_log.h"
 
-#define OBP_LOG_WARN(fmt, ...) \
-    do { \
-        printf("[WARN][JNI_COMMON] " fmt "\n", ##__VA_ARGS__); \
-        fflush(stdout); \
-    } while(0)
-
+// Define ERROR level logging since it's not provided by OceanBase
 #define OBP_LOG_ERROR(fmt, ...) \
     do { \
         printf("[ERROR][JNI_COMMON] " fmt "\n", ##__VA_ARGS__); \
@@ -45,7 +36,8 @@ bool GlobalJVMManager::config_recorded_ = false;
 std::mutex GlobalThreadManager::thread_mutex_;
 std::unordered_map<std::thread::id, int> GlobalThreadManager::global_thread_ref_count_;
 std::unordered_set<std::thread::id> GlobalThreadManager::attached_threads_;
-std::unordered_map<std::thread::id, std::unordered_set<std::string>> GlobalThreadManager::thread_plugin_map_;
+// TODO: thread_plugin_map_ is currently not utilized, kept for future debugging/monitoring needs
+// std::unordered_map<std::thread::id, std::unordered_set<std::string>> GlobalThreadManager::thread_plugin_map_;
 
 JavaVM* GlobalJVMManager::get_or_create_jvm(const std::string& classpath, 
                                            size_t max_heap_mb, 
@@ -128,8 +120,6 @@ void GlobalJVMManager::unregister_plugin(const std::string& plugin_name) {
         
         if (count == 0) {
             OBP_LOG_INFO("Last plugin unregistered, keeping JVM alive for stability");
-            // Don't destroy JVM for stability - let it stay alive
-            // This prevents crashes in multi-threaded environments
         }
     } else {
         OBP_LOG_WARN("Plugin '%s' was not registered", plugin_name.c_str());
@@ -209,7 +199,6 @@ JNIEnv* GlobalThreadManager::acquire_jni_env_for_plugin(JavaVM* jvm, const std::
     if (result == JNI_OK) {
         // Thread already attached, increase global reference count
         global_thread_ref_count_[current_thread_id]++;
-        thread_plugin_map_[current_thread_id].insert(plugin_name);
         OBP_LOG_INFO("[%s] Thread %p already attached, global ref count: %d", 
                     plugin_name.c_str(), &current_thread_id, global_thread_ref_count_[current_thread_id]);
         return env;
@@ -219,7 +208,6 @@ JNIEnv* GlobalThreadManager::acquire_jni_env_for_plugin(JavaVM* jvm, const std::
         if (result == JNI_OK) {
             attached_threads_.insert(current_thread_id);
             global_thread_ref_count_[current_thread_id] = 1;
-            thread_plugin_map_[current_thread_id].insert(plugin_name);
             OBP_LOG_INFO("[%s] Thread %p attached to JVM, global ref count: 1", 
                         plugin_name.c_str(), &current_thread_id);
             return env;
@@ -245,7 +233,6 @@ void GlobalThreadManager::release_jni_env_for_plugin(JavaVM* jvm, const std::str
     auto ref_it = global_thread_ref_count_.find(current_thread_id);
     if (ref_it != global_thread_ref_count_.end()) {
         ref_it->second--;
-        thread_plugin_map_[current_thread_id].erase(plugin_name);
         
         OBP_LOG_INFO("[%s] Thread %p global ref count decreased to: %d", 
                     plugin_name.c_str(), &current_thread_id, ref_it->second);
@@ -258,7 +245,6 @@ void GlobalThreadManager::release_jni_env_for_plugin(JavaVM* jvm, const std::str
                 attached_threads_.erase(current_thread_id);
             }
             global_thread_ref_count_.erase(ref_it);
-            thread_plugin_map_.erase(current_thread_id);
         }
     } else {
         OBP_LOG_WARN("[%s] Thread %p was not found in global reference count", 

@@ -20,7 +20,7 @@ namespace jni {
 
 /**
  * Global JVM Manager
- * @brief Centralized JVM lifecycle management for all plugins
+ * @brief Centralized JVM lifecycle management for all plugins with JNI environment.
  * @details This class manages the global JVM instance and ensures
  * proper creation, sharing, and cleanup across multiple plugin instances.
  */
@@ -126,7 +126,8 @@ private:
     static std::mutex thread_mutex_;
     static std::unordered_map<std::thread::id, int> global_thread_ref_count_;
     static std::unordered_set<std::thread::id> attached_threads_;
-    static std::unordered_map<std::thread::id, std::unordered_set<std::string>> thread_plugin_map_;
+    // TODO: thread_plugin_map_ is currently not utilized, kept for future debugging/monitoring needs
+    // static std::unordered_map<std::thread::id, std::unordered_set<std::string>> thread_plugin_map_;
     
     // Disable construction
     GlobalThreadManager() = delete;

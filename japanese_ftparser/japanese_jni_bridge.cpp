@@ -30,17 +30,7 @@ JapaneseJNIBridgeConfig::JapaneseJNIBridgeConfig()
                          "../java/lib/lucene-analyzers-common-8.11.2.jar:"
                          "../java/lib/lucene-analyzers-kuromoji-8.11.2.jar:"
                          "../java/lib/lucene-analyzers-nori-8.11.2.jar:"
-                         "../java:"
-                         "./java/lib/lucene-core-8.11.2.jar:"
-                         "./java/lib/lucene-analyzers-common-8.11.2.jar:"
-                         "./java/lib/lucene-analyzers-kuromoji-8.11.2.jar:"
-                         "./java/lib/lucene-analyzers-nori-8.11.2.jar:"
-                         "./java:"
-                         "../../java/lib/lucene-core-8.11.2.jar:"
-                         "../../java/lib/lucene-analyzers-common-8.11.2.jar:"
-                         "../../java/lib/lucene-analyzers-kuromoji-8.11.2.jar:"
-                         "../../java/lib/lucene-analyzers-nori-8.11.2.jar:"
-                         "../../java";
+                         "../java";
     }
 }
 
