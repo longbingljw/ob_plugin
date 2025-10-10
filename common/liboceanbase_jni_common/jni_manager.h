@@ -19,6 +19,39 @@ namespace oceanbase {
 namespace jni {
 
 /**
+ * JNI Configuration Utilities
+ * @brief Provides unified configuration management for all plugins
+ */
+class JNIConfigUtils {
+public:
+    /**
+     * Get unified Java classpath
+     * @return Classpath string, checks OCEANBASE_JNI_CLASSPATH env var first
+     */
+    static std::string get_unified_classpath();
+    
+    /**
+     * Get unified JVM maximum heap size
+     * @return Max heap size in MB, checks OCEANBASE_JNI_MAX_HEAP env var first
+     */
+    static size_t get_unified_max_heap_mb();
+    
+    /**
+     * Get unified JVM initial heap size
+     * @return Initial heap size in MB, checks OCEANBASE_JNI_INIT_HEAP env var first
+     */
+    static size_t get_unified_init_heap_mb();
+
+private:
+    /**
+     * Build dynamic classpath by scanning directory
+     * @param base_dir Base directory (e.g., "./java")
+     * @return Dynamically built classpath string
+     */
+    static std::string build_dynamic_classpath(const std::string& base_dir);
+};
+
+/**
  * Global JVM Manager
  * @brief Centralized JVM lifecycle management for all plugins with JNI environment.
  * @details This class manages the global JVM instance and ensures

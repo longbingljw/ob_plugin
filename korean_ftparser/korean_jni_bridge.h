@@ -16,13 +16,13 @@ namespace korean_ftparser {
 
 /**
  * Korean JNI Bridge Configuration
+ * @brief Plugin-specific configuration for Korean text segmentation
+ * @details JVM-level configurations are now managed by JNIConfigUtils in common library
  */
 struct KoreanJNIBridgeConfig {
-    std::string java_class_path;
+    // Plugin-specific configurations only
     std::string segmenter_class_name;
     std::string segment_method_name;
-    size_t jvm_max_heap_mb;
-    size_t jvm_init_heap_mb;
     
     KoreanJNIBridgeConfig();
 };

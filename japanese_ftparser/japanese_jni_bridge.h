@@ -16,13 +16,13 @@ namespace japanese_ftparser {
 
 /**
  * Japanese JNI Bridge Configuration
+ * @brief Plugin-specific configuration for Japanese text segmentation
+ * @details JVM-level configurations are now managed by JNIConfigUtils in common library
  */
 struct JapaneseJNIBridgeConfig {
-    std::string java_class_path;
+    // Plugin-specific configurations only
     std::string segmenter_class_name;
     std::string segment_method_name;
-    size_t jvm_max_heap_mb;
-    size_t jvm_init_heap_mb;
     
     JapaneseJNIBridgeConfig();
 };

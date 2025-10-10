@@ -7,6 +7,8 @@
 #include <iostream>
 #include <sstream>
 #include <cstring>
+#include <dirent.h>
+#include <algorithm>
 
 // Use OceanBase plugin logging framework
 #include "oceanbase/ob_plugin_log.h"
@@ -20,6 +22,83 @@
 
 namespace oceanbase {
 namespace jni {
+
+// JNIConfigUtils implementation
+std::string JNIConfigUtils::build_dynamic_classpath(const std::string& base_dir) {
+    std::string lib_dir = base_dir + "/lib";
+    std::vector<std::string> jar_files;
+    
+    // Open directory
+    DIR* dir = opendir(lib_dir.c_str());
+    if (dir == nullptr) {
+        // Directory doesn't exist, return fallback classpath
+        return base_dir + "/lib/lucene-core-8.11.2.jar:"
+               + base_dir + "/lib/lucene-analyzers-common-8.11.2.jar:"
+               + base_dir + "/lib/lucene-analyzers-kuromoji-8.11.2.jar:"
+               + base_dir + "/lib/lucene-analyzers-nori-8.11.2.jar:"
+               + ":" + base_dir;
+    }
+    
+    // Read directory entries
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string filename = entry->d_name;
+        
+        // Check if it's a .jar file
+        if (filename.length() > 4 && 
+            filename.substr(filename.length() - 4) == ".jar") {
+            jar_files.push_back(lib_dir + "/" + filename);
+        }
+    }
+    closedir(dir);
+    
+    // Sort jar files for consistent ordering
+    std::sort(jar_files.begin(), jar_files.end());
+    
+    // Build classpath
+    std::string classpath;
+    for (const auto& jar : jar_files) {
+        if (!classpath.empty()) {
+            classpath += ":";
+        }
+        classpath += jar;
+    }
+    
+    // Add base directory for .class files
+    if (!classpath.empty()) {
+        classpath += ":";
+    }
+    classpath += base_dir;
+    
+    return classpath;
+}
+
+std::string JNIConfigUtils::get_unified_classpath() {
+    // Check global environment variable first
+    const char* env_classpath = std::getenv("OCEANBASE_JNI_CLASSPATH");
+    if (env_classpath && strlen(env_classpath) > 0) {
+        return std::string(env_classpath);
+    }
+    
+    // Use dynamic classpath building
+    return build_dynamic_classpath("./java");
+}
+
+size_t JNIConfigUtils::get_unified_max_heap_mb() {
+    const char* env_max_heap = std::getenv("OCEANBASE_JNI_MAX_HEAP");
+    if (env_max_heap && strlen(env_max_heap) > 0) {
+        return static_cast<size_t>(std::atoi(env_max_heap));
+    }
+    return 512;  // Unified default: 512MB
+}
+
+size_t JNIConfigUtils::get_unified_init_heap_mb() {
+    const char* env_init_heap = std::getenv("OCEANBASE_JNI_INIT_HEAP");
+    if (env_init_heap && strlen(env_init_heap) > 0) {
+        return static_cast<size_t>(std::atoi(env_init_heap));
+    }
+    return 128;  // Unified default: 128MB
+}
 
 // GlobalJVMManager static members
 std::mutex GlobalJVMManager::global_mutex_;
@@ -274,13 +353,16 @@ ScopedJNIEnvironment::ScopedJNIEnvironment(const std::string& plugin_name,
     JavaVM* jvm = nullptr;
     
     if (!classpath.empty()) {
-        // Create or get JVM with specified classpath
-        OBP_LOG_INFO("[%s] Creating/getting JVM with classpath", plugin_name.c_str());
+        // Use provided classpath (for backward compatibility)
+        OBP_LOG_INFO("[%s] Creating/getting JVM with provided classpath", plugin_name.c_str());
         jvm = GlobalJVMManager::get_or_create_jvm(classpath, max_heap_mb, init_heap_mb);
     } else {
-        // Use existing JVM
-        OBP_LOG_INFO("[%s] Using existing JVM", plugin_name.c_str());
-        jvm = GlobalJVMManager::get_jvm();
+        // Use unified configuration from JNIConfigUtils
+        OBP_LOG_INFO("[%s] Creating/getting JVM with unified configuration", plugin_name.c_str());
+        jvm = GlobalJVMManager::get_or_create_jvm(
+            JNIConfigUtils::get_unified_classpath(),
+            JNIConfigUtils::get_unified_max_heap_mb(),
+            JNIConfigUtils::get_unified_init_heap_mb());
     }
     
     if (jvm) {

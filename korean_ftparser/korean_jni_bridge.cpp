@@ -18,20 +18,8 @@ namespace korean_ftparser {
 // Configuration implementation
 KoreanJNIBridgeConfig::KoreanJNIBridgeConfig() 
     : segmenter_class_name("KoreanSegmenter")
-    , segment_method_name("segment")
-    , jvm_max_heap_mb(512)
-    , jvm_init_heap_mb(128) {
-    
-    // Check environment variable first, then use default paths
-    const char* env_classpath = std::getenv("KOREAN_PARSER_CLASSPATH");
-    if (env_classpath && strlen(env_classpath) > 0) {
-        java_class_path = env_classpath;
-    } else {
-        // Working directory: /root/ob/observer/plugin_dir/
-        // "../java/lib/*" includes all JAR files in lib directory
-        java_class_path = "./java/lib/*:"
-                         "./java";
-    }
+    , segment_method_name("segment") {
+    // JVM configurations are now managed by JNIConfigUtils in common library
 }
 
 // KoreanJNIBridge implementation
@@ -64,9 +52,8 @@ int KoreanJNIBridge::initialize() {
     // Register with global JVM manager
     oceanbase::jni::GlobalJVMManager::register_plugin(plugin_name_);
     
-    // Create scoped JNI environment for initialization
-    oceanbase::jni::ScopedJNIEnvironment jni_env(plugin_name_, config_.java_class_path,
-                                                  config_.jvm_max_heap_mb, config_.jvm_init_heap_mb);
+    // Create scoped JNI environment using unified configuration from common library
+    oceanbase::jni::ScopedJNIEnvironment jni_env(plugin_name_);
     
     if (!jni_env) {
         set_error(OBP_PLUGIN_ERROR, "Failed to acquire JNI environment for Korean parser initialization");
