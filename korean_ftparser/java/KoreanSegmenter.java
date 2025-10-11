@@ -5,14 +5,15 @@ import java.util.List;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.ko.KoreanAnalyzer;
+import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 
 /**
- * Korean Segmenter using Apache Lucene KoreanAnalyzer (Nori)
+ * Korean Segmenter using CustomAnalyzer (ES Database Best Practice)
+ * Equivalent to ES config: nori_tokenizer + lowercase (no excessive filtering)
  */
 public class KoreanSegmenter {
-    private KoreanAnalyzer analyzer;
+    private Analyzer analyzer;
     private boolean initialized = false;
 
     /**
@@ -20,11 +21,22 @@ public class KoreanSegmenter {
      */
     public KoreanSegmenter() {
         try {
-            this.analyzer = new KoreanAnalyzer();
+            // 使用CustomAnalyzer实现ES数据库场景最佳实践
+            this.analyzer = CustomAnalyzer.builder()
+                .withTokenizer("korean")        // nori_tokenizer (韩语核心分词)
+                .addTokenFilter("lowercase")    // lowercase (基础标准化)
+                // 关键：不添加过度的词性过滤器
+                // 不添加: koreanPartOfSpeechStop (避免过度过滤)
+                // 不添加: koreanReadingForm (避免词形转换)
+                .build();
+                
             this.initialized = true;
-            System.out.println("KoreanSegmenter initialized with Apache Lucene KoreanAnalyzer (Nori)");
+            System.out.println("KoreanSegmenter initialized with ES Database Best Practice (CustomAnalyzer)");
+            System.out.println("Filters: korean + lowercase (no excessive filtering)");
+            System.out.println("Excluded: koreanPartOfSpeechStop, koreanReadingForm (to preserve grammar info)");
         } catch (Exception e) {
-            System.err.println("Failed to initialize KoreanAnalyzer: " + e.getMessage());
+            System.err.println("Failed to initialize CustomAnalyzer for Korean: " + e.getMessage());
+            e.printStackTrace();
             this.initialized = false;
         }
     }
@@ -45,22 +57,23 @@ public class KoreanSegmenter {
             return new String[0];
         }
 
-        System.out.println("=== OCEANBASE JNI CALL === Segmenting Korean text with Lucene Nori: \"" + text + "\" (length: " + text.length() + ")");
+        System.out.println("=== OCEANBASE JNI CALL === Segmenting Korean text with ES CustomAnalyzer: \"" + text + "\" (length: " + text.length() + ")");
 
         List<String> tokens = new ArrayList<>();
 
-        try (TokenStream tokenStream = analyzer.tokenStream("field", new StringReader(text))) {
+        try {
+            TokenStream tokenStream = analyzer.tokenStream("content", new StringReader(text));
             CharTermAttribute attr = tokenStream.addAttribute(CharTermAttribute.class);
+            
             tokenStream.reset();
-
             while (tokenStream.incrementToken()) {
                 String token = attr.toString();
                 if (token != null && !token.trim().isEmpty()) {
                     tokens.add(token);
                 }
             }
-
             tokenStream.end();
+            tokenStream.close();
 
         } catch (IOException e) {
             System.err.println("Error during Korean tokenization: " + e.getMessage());
@@ -68,7 +81,7 @@ public class KoreanSegmenter {
         }
 
         String[] result = tokens.toArray(new String[0]);
-        System.out.println("=== OCEANBASE JNI RESULT === Korean segmentation result: " + java.util.Arrays.toString(result));
+        System.out.println("=== OCEANBASE JNI RESULT === ES CustomAnalyzer Korean result: " + java.util.Arrays.toString(result));
 
         // Debug: Print each token's byte and char length
         for (int i = 0; i < result.length; i++) {

@@ -5,16 +5,11 @@ import java.util.List;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.ja.JapaneseTokenizer;
-import org.apache.lucene.analysis.ja.JapanesePartOfSpeechStopFilter;
-import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
-import org.apache.lucene.analysis.cjk.CJKWidthFilter;
-import org.apache.lucene.analysis.core.LowerCaseFilter;
+import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 
 /**
- * Japanese Segmenter using ES Database Best Practice
+ * Japanese Segmenter using ES Database Best Practice with CustomAnalyzer
  * Equivalent to ES config: kuromoji_tokenizer + kuromoji_part_of_speech + cjk_width + lowercase
  */
 public class JapaneseSegmenter {
@@ -26,14 +21,21 @@ public class JapaneseSegmenter {
      */
     public JapaneseSegmenter() {
         try {
-            // 不创建Analyzer，直接在segment方法中处理
-            this.analyzer = null;
+            // 使用CustomAnalyzer.builder()实现ES数据库场景最佳实践
+            this.analyzer = CustomAnalyzer.builder()
+                .withTokenizer("japanese")                    // kuromoji_tokenizer
+                .addTokenFilter("japanesePartOfSpeechStop")   // kuromoji_part_of_speech
+                .addTokenFilter("cjkWidth")                   // cjk_width
+                .addTokenFilter("lowercase")                  // lowercase
+                // 注意：不添加 "japaneseBaseForm" 过滤器
+                .build();
+                
             this.initialized = true;
-            System.out.println("JapaneseSegmenter initialized with ES Database Best Practice (single .class)");
-            System.out.println("Will apply: kuromoji_tokenizer + kuromoji_part_of_speech + cjk_width + lowercase");
-            System.out.println("Excluded: kuromoji_baseform (to avoid stemming for database use)");
+            System.out.println("JapaneseSegmenter initialized with ES Database Best Practice (CustomAnalyzer)");
+            System.out.println("Filters: japanese + japanesePartOfSpeechStop + cjkWidth + lowercase");
+            System.out.println("Excluded: japaneseBaseForm (to avoid stemming for database use)");
         } catch (Exception e) {
-            System.err.println("Failed to initialize JapaneseSegmenter: " + e.getMessage());
+            System.err.println("Failed to initialize CustomAnalyzer: " + e.getMessage());
             e.printStackTrace();
             this.initialized = false;
         }
@@ -53,39 +55,23 @@ public class JapaneseSegmenter {
             return new String[0];
         }
         
-        System.out.println("=== OCEANBASE JNI CALL === Segmenting text with ES Database Style: \"" + text + "\" (length: " + text.length() + ")");
+        System.out.println("=== OCEANBASE JNI CALL === Segmenting text with ES CustomAnalyzer: \"" + text + "\" (length: " + text.length() + ")");
         
         List<String> tokens = new ArrayList<>();
         
         try {
-            // 按ES数据库场景配置处理
+            TokenStream tokenStream = analyzer.tokenStream("content", new StringReader(text));
+            CharTermAttribute termAttr = tokenStream.addAttribute(CharTermAttribute.class);
             
-            // 1. kuromoji_tokenizer: 使用Kuromoji核心分词
-            JapaneseTokenizer tokenizer = new JapaneseTokenizer(null, false, JapaneseTokenizer.Mode.NORMAL);
-            tokenizer.setReader(new StringReader(text));
-            
-            // 2. kuromoji_part_of_speech: 词性停用词过滤
-            TokenStream stream1 = new JapanesePartOfSpeechStopFilter(tokenizer, JapaneseAnalyzer.getDefaultStopTags());
-            
-            // 3. cjk_width: CJK宽度标准化
-            TokenStream stream2 = new CJKWidthFilter(stream1);
-            
-            // 4. lowercase: 大小写标准化
-            TokenStream finalStream = new LowerCaseFilter(stream2);
-            
-            // ❌ 不包含: kuromoji_baseform (JapaneseBaseFormFilter)
-            
-            CharTermAttribute termAttr = finalStream.addAttribute(CharTermAttribute.class);
-            
-            finalStream.reset();
-            while (finalStream.incrementToken()) {
+            tokenStream.reset();
+            while (tokenStream.incrementToken()) {
                 String token = termAttr.toString().trim();
                 if (!token.isEmpty()) {
                     tokens.add(token);
                 }
             }
-            finalStream.end();
-            finalStream.close();
+            tokenStream.end();
+            tokenStream.close();
             
         } catch (IOException e) {
             System.err.println("Error during tokenization: " + e.getMessage());
@@ -94,7 +80,7 @@ public class JapaneseSegmenter {
         }
         
         String[] result = tokens.toArray(new String[0]);
-        System.out.println("=== OCEANBASE JNI RESULT === ES Database style result: " + java.util.Arrays.toString(result));
+        System.out.println("=== OCEANBASE JNI RESULT === ES CustomAnalyzer result: " + java.util.Arrays.toString(result));
         return result;
     }
     
