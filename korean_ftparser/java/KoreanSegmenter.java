@@ -21,21 +21,18 @@ public class KoreanSegmenter {
      */
     public KoreanSegmenter() {
         try {
-            // 使用CustomAnalyzer实现ES数据库场景最佳实践
+            // 使用CustomAnalyzer实现MIXED模式 (ES数据库场景最佳实践)
             this.analyzer = CustomAnalyzer.builder()
-                .withTokenizer("korean")        // nori_tokenizer (韩语核心分词)
+                .withTokenizer("korean", "decompoundMode", "mixed")  // MIXED模式！
                 .addTokenFilter("lowercase")    // lowercase (基础标准化)
-                // 关键：不添加过度的词性过滤器
-                // 不添加: koreanPartOfSpeechStop (避免过度过滤)
-                // 不添加: koreanReadingForm (避免词形转换)
                 .build();
                 
             this.initialized = true;
-            System.out.println("KoreanSegmenter initialized with ES Database Best Practice (CustomAnalyzer)");
-            System.out.println("Filters: korean + lowercase (no excessive filtering)");
-            System.out.println("Excluded: koreanPartOfSpeechStop, koreanReadingForm (to preserve grammar info)");
+            System.out.println("KoreanSegmenter initialized with MIXED mode (ES Database Best Practice)");
+            System.out.println("MIXED mode: preserves both original compound words and decomposed parts");
+            System.out.println("Benefits: precise search (완전한단어) + flexible search (부분단어)");
         } catch (Exception e) {
-            System.err.println("Failed to initialize CustomAnalyzer for Korean: " + e.getMessage());
+            System.err.println("Failed to initialize MIXED mode CustomAnalyzer: " + e.getMessage());
             e.printStackTrace();
             this.initialized = false;
         }
@@ -57,7 +54,7 @@ public class KoreanSegmenter {
             return new String[0];
         }
 
-        System.out.println("=== OCEANBASE JNI CALL === Segmenting Korean text with ES CustomAnalyzer: \"" + text + "\" (length: " + text.length() + ")");
+        System.out.println("=== OCEANBASE JNI CALL === Segmenting Korean text with MIXED mode: \"" + text + "\" (length: " + text.length() + ")");
 
         List<String> tokens = new ArrayList<>();
 
@@ -81,7 +78,7 @@ public class KoreanSegmenter {
         }
 
         String[] result = tokens.toArray(new String[0]);
-        System.out.println("=== OCEANBASE JNI RESULT === ES CustomAnalyzer Korean result: " + java.util.Arrays.toString(result));
+        System.out.println("=== OCEANBASE JNI RESULT === MIXED mode Korean result: " + java.util.Arrays.toString(result));
 
         // Debug: Print each token's byte and char length
         for (int i = 0; i < result.length; i++) {
