@@ -17,7 +17,7 @@ namespace thai_ftparser {
 
 // Configuration implementation
 ThaiJNIBridgeConfig::ThaiJNIBridgeConfig() 
-    : segmenter_class_name("RealThaiSegmenter")
+    : segmenter_class_name("ThaiSegmenter")
     , segment_method_name("segment") {
     // JVM configurations are now managed by JNIConfigUtils in common library
 }

@@ -9,20 +9,20 @@ import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 
 /**
- * Real Thai Segmenter using Apache Lucene ThaiTokenizer
+ * Thai Segmenter using Apache Lucene ThaiTokenizer
  */
-public class RealThaiSegmenter {
+public class ThaiSegmenter {
     private ThaiAnalyzer analyzer;
     private boolean initialized = false;
     
     /**
      * Constructor
      */
-    public RealThaiSegmenter() {
+    public ThaiSegmenter() {
         try {
             this.analyzer = new ThaiAnalyzer();
             this.initialized = true;
-            System.out.println("RealThaiSegmenter initialized with Apache Lucene ThaiAnalyzer");
+            System.out.println("ThaiSegmenter initialized with Apache Lucene ThaiAnalyzer");
         } catch (Exception e) {
             System.err.println("Failed to initialize ThaiAnalyzer: " + e.getMessage());
             this.initialized = false;
@@ -36,7 +36,7 @@ public class RealThaiSegmenter {
      */
     public String[] segment(String text) {
         if (!initialized) {
-            throw new IllegalStateException("RealThaiSegmenter not initialized");
+            throw new IllegalStateException("ThaiSegmenter not initialized");
         }
         
         if (text == null || text.trim().isEmpty()) {
@@ -75,7 +75,7 @@ public class RealThaiSegmenter {
      * Cleanup resources
      */
     public void cleanup() {
-        System.out.println("RealThaiSegmenter cleanup called");
+        System.out.println("ThaiSegmenter cleanup called");
         if (analyzer != null) {
             analyzer.close();
         }
@@ -86,7 +86,7 @@ public class RealThaiSegmenter {
      * Test main method
      */
     public static void main(String[] args) {
-        RealThaiSegmenter segmenter = new RealThaiSegmenter();
+        ThaiSegmenter segmenter = new ThaiSegmenter();
         
         // Test with English text
         String[] result1 = segmenter.segment("Hello world");
