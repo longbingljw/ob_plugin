@@ -27,12 +27,13 @@ public class JapaneseSegmenter {
                 .addTokenFilter("japanesePartOfSpeechStop")   // kuromoji_part_of_speech
                 .addTokenFilter("cjkWidth")                   // cjk_width
                 .addTokenFilter("lowercase")                  // lowercase
+                .addTokenFilter("stop", "words", "org/apache/lucene/analysis/ja/stopwords.txt")  // 日语停用词过滤
                 // 注意：不添加 "japaneseBaseForm" 过滤器
                 .build();
                 
             this.initialized = true;
             System.out.println("JapaneseSegmenter initialized with ES Database Best Practice (CustomAnalyzer)");
-            System.out.println("Filters: japanese + japanesePartOfSpeechStop + cjkWidth + lowercase");
+            System.out.println("Filters: japanese + japanesePartOfSpeechStop + cjkWidth + lowercase + japaneseStop");
             System.out.println("Excluded: japaneseBaseForm (to avoid stemming for database use)");
         } catch (Exception e) {
             System.err.println("Failed to initialize CustomAnalyzer: " + e.getMessage());
