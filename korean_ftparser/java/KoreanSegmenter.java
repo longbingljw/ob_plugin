@@ -9,8 +9,8 @@ import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 
 /**
- * Korean Segmenter using CustomAnalyzer (ES Database Best Practice)
- * Equivalent to ES config: nori_tokenizer + lowercase (no excessive filtering)
+ * Korean Segmenter using CustomAnalyzer
+ * nori_tokenizer + lowercase (no excessive filtering)
  */
 public class KoreanSegmenter {
     private Analyzer analyzer;
@@ -21,10 +21,10 @@ public class KoreanSegmenter {
      */
     public KoreanSegmenter() {
         try {
-            // 使用CustomAnalyzer实现MIXED模式 (ES数据库场景最佳实践)
+            // Use CustomAnalyzer to implement MIXED mode
             this.analyzer = CustomAnalyzer.builder()
-                .withTokenizer("korean", "decompoundMode", "mixed")  // MIXED模式！
-                .addTokenFilter("lowercase")    // lowercase (基础标准化)
+                .withTokenizer("korean", "decompoundMode", "mixed")  // MIXED mode!
+                .addTokenFilter("lowercase")    // lowercase (basic normalization)
                 .build();
                 
             this.initialized = true;

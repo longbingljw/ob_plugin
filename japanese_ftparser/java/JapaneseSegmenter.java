@@ -10,7 +10,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 
 /**
  * Japanese Segmenter using ES Database Best Practice with CustomAnalyzer
- * Equivalent to ES config: kuromoji_tokenizer + kuromoji_part_of_speech + cjk_width + lowercase
  */
 public class JapaneseSegmenter {
     private Analyzer analyzer;
@@ -21,10 +20,10 @@ public class JapaneseSegmenter {
      */
     public JapaneseSegmenter() {
         try {
-            // 使用CustomAnalyzer.builder()实现ES完整方案 (包含BaseForm)
+            // Use CustomAnalyzer.builder() (including BaseForm)
             this.analyzer = CustomAnalyzer.builder()
                 .withTokenizer("japanese")                    // kuromoji_tokenizer
-                .addTokenFilter("japaneseBaseForm")           // kuromoji_baseform (ES方案)
+                .addTokenFilter("japaneseBaseForm")           // kuromoji_baseform
                 .addTokenFilter("japanesePartOfSpeechStop")   // kuromoji_part_of_speech
                 .addTokenFilter("cjkWidth")                   // cjk_width
                 .addTokenFilter("lowercase")                  // lowercase
@@ -34,7 +33,6 @@ public class JapaneseSegmenter {
             this.initialized = true;
             System.out.println("JapaneseSegmenter initialized with ES Complete Solution (CustomAnalyzer)");
             System.out.println("Filters: japanese + japaneseBaseForm + japanesePartOfSpeechStop + cjkWidth + lowercase + ja_stop");
-            System.out.println("ES方案: 包含BaseForm词干提取，与Dify配置对齐");
         } catch (Exception e) {
             System.err.println("Failed to initialize CustomAnalyzer: " + e.getMessage());
             e.printStackTrace();
