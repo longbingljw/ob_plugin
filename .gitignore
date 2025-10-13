@@ -1,10 +1,18 @@
+# cursor
 .cursor/
 include/
+
+# build/
 japanese_ftparser/build/
 korean_ftparser/build/
 thai_ftparser/build/
 common/liboceanbase_jni_common/build/
+
+# test/java-test-script/
+test/java-test-script/java/*_results/
+
+# test text data
+test/java-test-script/*_test.txt
+
+# userinput.py
 userinput.py
-korean_ftparser_v2/build/
-thai_ftparser_v2/build/
-korean_ftparser_old/build/

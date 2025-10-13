@@ -21,20 +21,20 @@ public class JapaneseSegmenter {
      */
     public JapaneseSegmenter() {
         try {
-            // 使用CustomAnalyzer.builder()实现ES数据库场景最佳实践
+            // 使用CustomAnalyzer.builder()实现ES完整方案 (包含BaseForm)
             this.analyzer = CustomAnalyzer.builder()
                 .withTokenizer("japanese")                    // kuromoji_tokenizer
+                .addTokenFilter("japaneseBaseForm")           // kuromoji_baseform (ES方案)
                 .addTokenFilter("japanesePartOfSpeechStop")   // kuromoji_part_of_speech
                 .addTokenFilter("cjkWidth")                   // cjk_width
                 .addTokenFilter("lowercase")                  // lowercase
-                .addTokenFilter("stop", "words", "org/apache/lucene/analysis/ja/stopwords.txt")  // 日语停用词过滤
-                // 注意：不添加 "japaneseBaseForm" 过滤器
+                .addTokenFilter("stop", "words", "org/apache/lucene/analysis/ja/stopwords.txt")  // ja_stop
                 .build();
                 
             this.initialized = true;
-            System.out.println("JapaneseSegmenter initialized with ES Database Best Practice (CustomAnalyzer)");
-            System.out.println("Filters: japanese + japanesePartOfSpeechStop + cjkWidth + lowercase + japaneseStop");
-            System.out.println("Excluded: japaneseBaseForm (to avoid stemming for database use)");
+            System.out.println("JapaneseSegmenter initialized with ES Complete Solution (CustomAnalyzer)");
+            System.out.println("Filters: japanese + japaneseBaseForm + japanesePartOfSpeechStop + cjkWidth + lowercase + ja_stop");
+            System.out.println("ES方案: 包含BaseForm词干提取，与Dify配置对齐");
         } catch (Exception e) {
             System.err.println("Failed to initialize CustomAnalyzer: " + e.getMessage());
             e.printStackTrace();
