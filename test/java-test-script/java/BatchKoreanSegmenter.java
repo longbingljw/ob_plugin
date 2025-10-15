@@ -90,12 +90,10 @@ public class BatchKoreanSegmenter {
 
                     totalTokens += tokens.length;
                 } else {
-                    // If no tokens produced, write the original text
-                    // This handles cases where the text cannot be segmented
-                    writer.write(line.trim());
+                    // If no tokens produced, write empty line
                     writer.newLine();
 
-                    System.out.println("Warning: Line " + processedLines + " produced no tokens, writing original text: '" + line.trim() + "'");
+                    System.out.println("Warning: Line " + processedLines + " produced no tokens, writing empty line for: '" + line.trim() + "'");
                 }
 
                 // Progress indicator for large files
