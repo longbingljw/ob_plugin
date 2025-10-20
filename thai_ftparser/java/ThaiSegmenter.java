@@ -12,23 +12,20 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
  * Thai Segmenter using static method to reduce memory usage
  */
 public class ThaiSegmenter {
-    private static volatile ThaiAnalyzer staticAnalyzer;
-    private static final Object initLock = new Object();
-    private static boolean staticInitialized = false;
+    // 简单直接的静态初始化 - 只创建一次，绝对保证
+    private static final ThaiAnalyzer STATIC_ANALYZER = createAnalyzer();
     
-    static {
-        initializeStaticAnalyzer();
-    }
-    
-    private static void initializeStaticAnalyzer() {
+    /**
+     * 创建分析器 - 只在类加载时调用一次
+     */
+    private static ThaiAnalyzer createAnalyzer() {
         try {
-            staticAnalyzer = new ThaiAnalyzer();
-            staticInitialized = true;
-            System.out.println("ThaiSegmenter initialized");
+            System.out.println("ThaiSegmenter: Creating static analyzer (once per JVM)");
+            return new ThaiAnalyzer();
         } catch (Exception e) {
             System.err.println("Failed to initialize ThaiSegmenter: " + e.getMessage());
             e.printStackTrace();
-            staticInitialized = false;
+            throw new RuntimeException("Cannot initialize ThaiAnalyzer", e);
         }
     }
     
@@ -38,18 +35,6 @@ public class ThaiSegmenter {
      * @return Array of segmented tokens
      */
     public static String[] segment(String text) {
-        if (!staticInitialized) {
-            synchronized (initLock) {
-                if (!staticInitialized) {
-                    initializeStaticAnalyzer();
-                }
-            }
-        }
-        
-        if (!staticInitialized) {
-            throw new IllegalStateException("ThaiSegmenter not initialized");
-        }
-        
         if (text == null || text.trim().isEmpty()) {
             return new String[0];
         }
@@ -57,7 +42,8 @@ public class ThaiSegmenter {
         List<String> tokens = new ArrayList<>();
         
         try {
-            TokenStream tokenStream = staticAnalyzer.tokenStream("content", new StringReader(text));
+            // 直接使用静态分析器 - 无需任何检查，因为它肯定已经初始化了
+            TokenStream tokenStream = STATIC_ANALYZER.tokenStream("content", new StringReader(text));
             CharTermAttribute termAttr = tokenStream.addAttribute(CharTermAttribute.class);
             
             tokenStream.reset();
@@ -78,8 +64,11 @@ public class ThaiSegmenter {
         return tokens.toArray(new String[0]);
     }
     
+    /**
+     * 检查静态分析器是否已初始化 (总是返回true，因为如果初始化失败会抛异常)
+     */
     public static boolean isStaticInitialized() {
-        return staticInitialized;
+        return STATIC_ANALYZER != null;
     }
     
     public static void main(String[] args) {

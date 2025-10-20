@@ -12,17 +12,16 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
  * Japanese Segmenter using static method to reduce memory usage
  */
 public class JapaneseSegmenter {
-    private static volatile Analyzer staticAnalyzer;
-    private static final Object initLock = new Object();
-    private static boolean staticInitialized = false;
+    // 简单直接的静态初始化 - 只创建一次，绝对保证
+    private static final Analyzer STATIC_ANALYZER = createAnalyzer();
     
-    static {
-        initializeStaticAnalyzer();
-    }
-    
-    private static void initializeStaticAnalyzer() {
+    /**
+     * 创建分析器 - 只在类加载时调用一次
+     */
+    private static Analyzer createAnalyzer() {
         try {
-            staticAnalyzer = CustomAnalyzer.builder()
+            System.out.println("JapaneseSegmenter: Creating static analyzer (once per JVM)");
+            return CustomAnalyzer.builder()
                 .withTokenizer("japanese")                    // kuromoji_tokenizer
                 .addTokenFilter("japaneseBaseForm")           // kuromoji_baseform
                 .addTokenFilter("japanesePartOfSpeechStop")   // kuromoji_part_of_speech
@@ -30,13 +29,10 @@ public class JapaneseSegmenter {
                 .addTokenFilter("lowercase")                  // lowercase
                 .addTokenFilter("stop", "words", "org/apache/lucene/analysis/ja/stopwords.txt")  // ja_stop
                 .build();
-                
-            staticInitialized = true;
-            System.out.println("JapaneseSegmenter initialized");
         } catch (Exception e) {
             System.err.println("Failed to initialize JapaneseSegmenter: " + e.getMessage());
             e.printStackTrace();
-            staticInitialized = false;
+            throw new RuntimeException("Cannot initialize JapaneseAnalyzer", e);
         }
     }
     
@@ -46,18 +42,6 @@ public class JapaneseSegmenter {
      * @return Array of segmented tokens
      */
     public static String[] segment(String text) {
-        if (!staticInitialized) {
-            synchronized (initLock) {
-                if (!staticInitialized) {
-                    initializeStaticAnalyzer();
-                }
-            }
-        }
-        
-        if (!staticInitialized) {
-            throw new IllegalStateException("JapaneseSegmenter not initialized");
-        }
-        
         if (text == null || text.trim().isEmpty()) {
             return new String[0];
         }
@@ -65,7 +49,8 @@ public class JapaneseSegmenter {
         List<String> tokens = new ArrayList<>();
         
         try {
-            TokenStream tokenStream = staticAnalyzer.tokenStream("content", new StringReader(text));
+            // 直接使用静态分析器 - 无需任何检查，因为它肯定已经初始化了
+            TokenStream tokenStream = STATIC_ANALYZER.tokenStream("content", new StringReader(text));
             CharTermAttribute termAttr = tokenStream.addAttribute(CharTermAttribute.class);
             
             tokenStream.reset();
@@ -87,7 +72,7 @@ public class JapaneseSegmenter {
     }
     
     public static boolean isStaticInitialized() {
-        return staticInitialized;
+        return STATIC_ANALYZER != null;
     }
     
     public static void main(String[] args) {

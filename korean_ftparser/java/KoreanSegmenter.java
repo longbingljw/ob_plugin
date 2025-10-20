@@ -12,27 +12,23 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
  * Korean Segmenter using static method to reduce memory usage
  */
 public class KoreanSegmenter {
-    private static volatile Analyzer staticAnalyzer;
-    private static final Object initLock = new Object();
-    private static boolean staticInitialized = false;
+    // 简单直接的静态初始化 - 只创建一次，绝对保证
+    private static final Analyzer STATIC_ANALYZER = createAnalyzer();
     
-    static {
-        initializeStaticAnalyzer();
-    }
-    
-    private static void initializeStaticAnalyzer() {
+    /**
+     * 创建分析器 - 只在类加载时调用一次
+     */
+    private static Analyzer createAnalyzer() {
         try {
-            staticAnalyzer = CustomAnalyzer.builder()
+            System.out.println("KoreanSegmenter: Creating static analyzer (once per JVM)");
+            return CustomAnalyzer.builder()
                 .withTokenizer("korean", "decompoundMode", "mixed")  // MIXED mode!
                 .addTokenFilter("lowercase")    // lowercase (basic normalization)
                 .build();
-                
-            staticInitialized = true;
-            System.out.println("KoreanSegmenter initialized with MIXED mode");
         } catch (Exception e) {
             System.err.println("Failed to initialize KoreanSegmenter: " + e.getMessage());
             e.printStackTrace();
-            staticInitialized = false;
+            throw new RuntimeException("Cannot initialize KoreanAnalyzer", e);
         }
     }
     
@@ -42,18 +38,6 @@ public class KoreanSegmenter {
      * @return Array of token strings
      */
     public static String[] segment(String text) {
-        if (!staticInitialized) {
-            synchronized (initLock) {
-                if (!staticInitialized) {
-                    initializeStaticAnalyzer();
-                }
-            }
-        }
-        
-        if (!staticInitialized) {
-            throw new IllegalStateException("KoreanSegmenter not initialized");
-        }
-
         if (text == null || text.trim().isEmpty()) {
             return new String[0];
         }
@@ -61,7 +45,8 @@ public class KoreanSegmenter {
         List<String> tokens = new ArrayList<>();
 
         try {
-            TokenStream tokenStream = staticAnalyzer.tokenStream("content", new StringReader(text));
+            // 直接使用静态分析器 - 无需任何检查，因为它肯定已经初始化了
+            TokenStream tokenStream = STATIC_ANALYZER.tokenStream("content", new StringReader(text));
             CharTermAttribute attr = tokenStream.addAttribute(CharTermAttribute.class);
             
             tokenStream.reset();
@@ -83,7 +68,7 @@ public class KoreanSegmenter {
     }
     
     public static boolean isStaticInitialized() {
-        return staticInitialized;
+        return STATIC_ANALYZER != null;
     }
     
     public static void main(String[] args) {
