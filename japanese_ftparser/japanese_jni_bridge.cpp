@@ -25,7 +25,6 @@ JapaneseJNIBridge::JapaneseJNIBridge()
     : plugin_name_("japanese_ftparser")
     , is_initialized_(false)
     , segmenter_class_(nullptr)
-    , constructor_method_(nullptr)
     , segment_method_(nullptr) {
     clear_error();
 }
@@ -115,24 +114,13 @@ int JapaneseJNIBridge::load_java_classes(JNIEnv* env) {
         return OBP_PLUGIN_ERROR;
     }
     
-    // Get constructor method ID
-    constructor_method_ = env->GetMethodID(segmenter_class_, "<init>", "()V");
-    if (!constructor_method_ || oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        std::string msg = "Cannot find constructor for segmenter class";
-        if (!error_msg.empty()) {
-            msg += " (" + error_msg + ")";
-        }
-        set_error(OBP_PLUGIN_ERROR, msg);
-        return OBP_PLUGIN_ERROR;
-    }
-    
-    // Get segment method ID
+    // OPTIMIZED: Get static segment method ID instead of constructor and instance method
     std::string segment_signature = "(Ljava/lang/String;)[Ljava/lang/String;";
-    segment_method_ = env->GetMethodID(segmenter_class_, 
-                                     config_.segment_method_name.c_str(), 
-                                     segment_signature.c_str());
+    segment_method_ = env->GetStaticMethodID(segmenter_class_, 
+                                           config_.segment_method_name.c_str(), 
+                                           segment_signature.c_str());
     if (!segment_method_ || oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        std::string msg = "Cannot find method: " + config_.segment_method_name + 
+        std::string msg = "Cannot find STATIC method: " + config_.segment_method_name + 
                          " with signature: " + segment_signature;
         if (!error_msg.empty()) {
             msg += " (" + error_msg + ")";
@@ -140,6 +128,8 @@ int JapaneseJNIBridge::load_java_classes(JNIEnv* env) {
         set_error(OBP_PLUGIN_ERROR, msg);
         return OBP_PLUGIN_ERROR;
     }
+    
+    // OPTIMIZED: No constructor method needed for static approach
     
     OBP_LOG_INFO("Java classes loaded successfully");
     return OBP_SUCCESS;
@@ -151,8 +141,8 @@ int JapaneseJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vec
         return OBP_PLUGIN_ERROR;
     }
     
-    // Push local frame for automatic cleanup
-    if (env->PushLocalFrame(64) < 0) {
+    // OPTIMIZED: Smaller local frame since we don't create instances
+    if (env->PushLocalFrame(16) < 0) {
         set_error(OBP_PLUGIN_ERROR, "Failed to push JNI local reference frame");
         return OBP_PLUGIN_ERROR;
     }
@@ -165,26 +155,14 @@ int JapaneseJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vec
         return OBP_PLUGIN_ERROR;
     }
     
-    // Create a fresh Java segmenter instance for this call
-    jobject local_segmenter = env->NewObject(segmenter_class_, constructor_method_);
-    std::string error_msg;
-    if (!local_segmenter || oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        std::string msg = "Failed to create local segmenter instance";
-        if (!error_msg.empty()) {
-            msg += " (" + error_msg + ")";
-        }
-        set_error(OBP_PLUGIN_ERROR, msg);
-        env->PopLocalFrame(nullptr);
-        return OBP_PLUGIN_ERROR;
-    }
-    
-    // Call Java segmentation method
-    jobjectArray jresult = (jobjectArray)env->CallObjectMethod(
-        local_segmenter, segment_method_, jtext);
+    // OPTIMIZED: Call static Java segmentation method - no instance creation!
+    jobjectArray jresult = (jobjectArray)env->CallStaticObjectMethod(
+        segmenter_class_, segment_method_, jtext);
     
     // Check for Java exceptions
+    std::string error_msg;
     if (oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        std::string msg = "Java segmentation method threw exception";
+        std::string msg = "Static Java segmentation method threw exception";
         if (!error_msg.empty()) {
             msg += " (" + error_msg + ")";
         }
@@ -194,7 +172,7 @@ int JapaneseJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vec
     }
     
     if (!jresult) {
-        set_error(OBP_PLUGIN_ERROR, "Java segmentation method returned null");
+        set_error(OBP_PLUGIN_ERROR, "Static Java segmentation method returned null");
         env->PopLocalFrame(nullptr);
         return OBP_PLUGIN_ERROR;
     }

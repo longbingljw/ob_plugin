@@ -27,7 +27,6 @@ ThaiJNIBridge::ThaiJNIBridge()
     : plugin_name_("thai_ftparser")
     , is_initialized_(false)
     , segmenter_class_(nullptr)
-    , constructor_method_(nullptr)
     , segment_method_(nullptr) {
     clear_error();
 }
@@ -108,16 +107,9 @@ int ThaiJNIBridge::load_java_classes(JNIEnv* env) {
         return OBP_PLUGIN_ERROR;
     }
     
-    // Get constructor method ID
-    constructor_method_ = env->GetMethodID(segmenter_class_, "<init>", "()V");
-    if (!constructor_method_ || oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        set_error(OBP_PLUGIN_ERROR, "Failed to find Thai segmenter constructor: " + error_msg);
-        return OBP_PLUGIN_ERROR;
-    }
-    
-    // Get segment method ID
-    segment_method_ = env->GetMethodID(segmenter_class_, config_.segment_method_name.c_str(), 
-                                      "(Ljava/lang/String;)[Ljava/lang/String;");
+    // OPTIMIZED: Get static segment method ID (no constructor needed)
+    segment_method_ = env->GetStaticMethodID(segmenter_class_, config_.segment_method_name.c_str(), 
+                                            "(Ljava/lang/String;)[Ljava/lang/String;");
     if (!segment_method_ || oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
         set_error(OBP_PLUGIN_ERROR, "Failed to find Thai segment method '" + 
                   config_.segment_method_name + "': " + error_msg);
@@ -146,19 +138,9 @@ int ThaiJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vector<
         return OBP_PLUGIN_ERROR;
     }
     
-    // Create Thai segmenter instance
-    jobject local_segmenter = env->NewObject(segmenter_class_, constructor_method_);
-    if (!local_segmenter || oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
-        env->PopLocalFrame(nullptr);
-        set_error(OBP_PLUGIN_ERROR, "Failed to create Thai segmenter instance: " + error_msg);
-        return OBP_PLUGIN_ERROR;
-    }
-    
-    std::cout << "=== OCEANBASE JNI CALL === Segmenting Thai text with Lucene: \"" 
-              << text.substr(0, std::min(text.length(), size_t(100))) << "\" (length: " << text.length() << ")" << std::endl;
-    
-    // Call segment method
-    jobjectArray jresult = (jobjectArray)env->CallObjectMethod(local_segmenter, segment_method_, jtext);
+    // OPTIMIZED: Call static segment method (no instance creation needed)
+    jobjectArray jresult = (jobjectArray)env->CallStaticObjectMethod(
+        segmenter_class_, segment_method_, jtext);
     if (oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
         env->PopLocalFrame(nullptr);
         set_error(OBP_PLUGIN_ERROR, "Thai segmentation failed: " + error_msg);
