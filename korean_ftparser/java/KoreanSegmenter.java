@@ -44,20 +44,15 @@ public class KoreanSegmenter {
 
         List<String> tokens = new ArrayList<>();
 
-        try {
-            // 直接使用静态分析器 - 无需任何检查，因为它肯定已经初始化了
-            TokenStream tokenStream = STATIC_ANALYZER.tokenStream("content", new StringReader(text));
+        try (TokenStream tokenStream = STATIC_ANALYZER.tokenStream("content", new StringReader(text))) {
             CharTermAttribute attr = tokenStream.addAttribute(CharTermAttribute.class);
             
             tokenStream.reset();
             while (tokenStream.incrementToken()) {
                 String token = attr.toString();
-                if (token != null && !token.trim().isEmpty()) {
-                    tokens.add(token);
-                }
+                tokens.add(token);
             }
             tokenStream.end();
-            tokenStream.close();
 
         } catch (IOException e) {
             System.err.println("Error during Korean tokenization: " + e.getMessage());

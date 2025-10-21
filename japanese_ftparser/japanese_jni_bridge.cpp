@@ -141,17 +141,10 @@ int JapaneseJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vec
         return OBP_PLUGIN_ERROR;
     }
     
-    // OPTIMIZED: Smaller local frame since we don't create instances
-    if (env->PushLocalFrame(16) < 0) {
-        set_error(OBP_PLUGIN_ERROR, "Failed to push JNI local reference frame");
-        return OBP_PLUGIN_ERROR;
-    }
-    
     // Convert C++ string to Java string
     jstring jtext = oceanbase::jni::JNIUtils::cpp_string_to_jstring(env, text);
     if (!jtext) {
         set_error(OBP_PLUGIN_ERROR, "Failed to convert text to Java string");
-        env->PopLocalFrame(nullptr);
         return OBP_PLUGIN_ERROR;
     }
     
@@ -167,26 +160,30 @@ int JapaneseJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vec
             msg += " (" + error_msg + ")";
         }
         set_error(OBP_PLUGIN_ERROR, msg);
-        env->PopLocalFrame(nullptr);
+        // Clean up local references before returning
+        // Note: jresult is nullptr when exception occurs, no need to clean it
+        env->DeleteLocalRef(jtext);
         return OBP_PLUGIN_ERROR;
     }
     
     if (!jresult) {
         set_error(OBP_PLUGIN_ERROR, "Static Java segmentation method returned null");
-        env->PopLocalFrame(nullptr);
+        env->DeleteLocalRef(jtext);
         return OBP_PLUGIN_ERROR;
     }
     
-    // Convert Java string array to C++ vector
+    // Convert Java string array to C++ vector (JNIUtils handles its own Frame management)
     int ret = oceanbase::jni::JNIUtils::jstring_array_to_cpp_vector(env, jresult, tokens);
     if (ret != 0) {
         set_error(OBP_PLUGIN_ERROR, "Failed to convert Java result to C++ vector");
-        env->PopLocalFrame(nullptr);
+        env->DeleteLocalRef(jtext);
+        env->DeleteLocalRef(jresult);
         return OBP_PLUGIN_ERROR;
     }
     
-    // Pop local frame (automatic cleanup)
-    env->PopLocalFrame(nullptr);
+    // Clean up our local references
+    env->DeleteLocalRef(jtext);
+    env->DeleteLocalRef(jresult);
     
     OBP_LOG_INFO("Segmentation completed, got %zu tokens", tokens.size());
     return OBP_SUCCESS;
@@ -195,7 +192,7 @@ int JapaneseJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vec
 void JapaneseJNIBridge::set_error(int code, const std::string& message) {
     last_error_.error_code = code;
     last_error_.error_message = message;
-    std::cout << "[ERROR][JapaneseJNIBridge] " << message << std::endl;
+    // 移除直接输出，让上层统一处理错误输出
 }
 
 void JapaneseJNIBridge::clear_error() {
@@ -244,7 +241,7 @@ int japanese_ftparser_init(ObPluginParamPtr param) {
     
     // Don't initialize JVM here - do it lazily on first use (scan_begin)
     // This avoids issues with classpath when Observer is starting up
-    std::cout << "[INFO] Japanese FTParser plugin registered (JVM will be initialized on first use)" << std::endl;
+    OBP_LOG_INFO("Japanese FTParser plugin registered (JVM will be initialized on first use)");
     return OBP_SUCCESS;
 }
 
@@ -253,7 +250,7 @@ int japanese_ftparser_deinit(ObPluginParamPtr param) {
         return OBP_INVALID_ARGUMENT;
     }
     
-    std::cout << "[INFO] Japanese FTParser deinitialized" << std::endl;
+    OBP_LOG_INFO("Japanese FTParser plugin deinitialized");
     return OBP_SUCCESS;
 }
 
@@ -264,9 +261,9 @@ int japanese_ftparser_scan_begin(ObPluginFTParserParamPtr param) {
     
     // Lazy initialization: initialize JVM on first actual use
     auto& manager = oceanbase::japanese_ftparser::JapaneseJNIBridgeManager::get_instance();
-    int ret = manager.initialize();
+    int     ret = manager.initialize();
     if (ret != OBP_SUCCESS) {
-        std::cout << "[ERROR] Failed to initialize JNI bridge on first use" << std::endl;
+        OBP_LOG_WARN("Failed to initialize JNI bridge on first use (error_code: %d)", ret);
         return ret;
     }
     
@@ -297,7 +294,8 @@ int japanese_ftparser_scan_begin(ObPluginFTParserParamPtr param) {
     ret = bridge->segment(text, jp->tokens);
     if (ret != OBP_SUCCESS) {
         const auto& error = bridge->get_last_error();
-        std::cout << "[ERROR] Segmentation failed: " << error.error_message << std::endl;
+        OBP_LOG_WARN("Segmentation failed: %s (error_code: %d)", 
+                     error.error_message.c_str(), error.error_code);
         delete jp;
         return ret;
     }
@@ -307,7 +305,8 @@ int japanese_ftparser_scan_begin(ObPluginFTParserParamPtr param) {
     // Store parser instance in user data
     obp_ftparser_set_user_data(param, jp);
     
-    std::cout << "[INFO] Scan begin completed, got " << jp->tokens.size() << " tokens" << std::endl;
+    OBP_LOG_INFO("Segmentation completed: %zu tokens extracted from %zu characters", 
+                 jp->tokens.size(), text.length());
     return OBP_SUCCESS;
 }
 
