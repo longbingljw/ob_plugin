@@ -210,7 +210,7 @@ int JapaneseJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vec
     // Pop local frame (automatic cleanup)
     env->PopLocalFrame(nullptr);
     
-    OBP_LOG_INFO("Segmentation completed, got %zu tokens", tokens.size());
+    // OBP_LOG_INFO("Segmentation completed, got %zu tokens", tokens.size());
     return OBP_SUCCESS;
 }
 
@@ -266,7 +266,6 @@ int japanese_ftparser_init(ObPluginParamPtr param) {
     
     // Don't initialize JVM here - do it lazily on first use (scan_begin)
     // This avoids issues with classpath when Observer is starting up
-    std::cout << "[INFO] Japanese FTParser plugin registered (JVM will be initialized on first use)" << std::endl;
     return OBP_SUCCESS;
 }
 
@@ -275,7 +274,6 @@ int japanese_ftparser_deinit(ObPluginParamPtr param) {
         return OBP_INVALID_ARGUMENT;
     }
     
-    std::cout << "[INFO] Japanese FTParser deinitialized" << std::endl;
     return OBP_SUCCESS;
 }
 
@@ -288,7 +286,6 @@ int japanese_ftparser_scan_begin(ObPluginFTParserParamPtr param) {
     auto& manager = oceanbase::japanese_ftparser::JapaneseJNIBridgeManager::get_instance();
     int ret = manager.initialize();
     if (ret != OBP_SUCCESS) {
-        std::cout << "[ERROR] Failed to initialize JNI bridge on first use" << std::endl;
         return ret;
     }
     
@@ -319,7 +316,6 @@ int japanese_ftparser_scan_begin(ObPluginFTParserParamPtr param) {
     ret = bridge->segment(text, jp->tokens);
     if (ret != OBP_SUCCESS) {
         const auto& error = bridge->get_last_error();
-        std::cout << "[ERROR] Segmentation failed: " << error.error_message << std::endl;
         delete jp;
         return ret;
     }
@@ -329,7 +325,6 @@ int japanese_ftparser_scan_begin(ObPluginFTParserParamPtr param) {
     // Store parser instance in user data
     obp_ftparser_set_user_data(param, jp);
     
-    std::cout << "[INFO] Scan begin completed, got " << jp->tokens.size() << " tokens" << std::endl;
     return OBP_SUCCESS;
 }
 

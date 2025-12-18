@@ -69,7 +69,6 @@ int KoreanJNIBridge::initialize() {
     }
     
     is_initialized_ = true;
-    std::cout << "[INFO] Korean JNI Bridge initialized successfully" << std::endl;
     return OBP_SUCCESS;
 }
 
@@ -124,7 +123,6 @@ int KoreanJNIBridge::load_java_classes(JNIEnv* env) {
         return OBP_PLUGIN_ERROR;
     }
     
-    std::cout << "[INFO] Korean Java classes loaded successfully" << std::endl;
     return OBP_SUCCESS;
 }
 
@@ -154,9 +152,6 @@ int KoreanJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vecto
         return OBP_PLUGIN_ERROR;
     }
     
-    std::cout << "=== OCEANBASE JNI CALL === Segmenting Korean text with Lucene: \"" 
-              << text.substr(0, std::min(text.length(), size_t(100))) << "\" (length: " << text.length() << ")" << std::endl;
-    
     // Call segment method
     jobjectArray jresult = (jobjectArray)env->CallObjectMethod(local_segmenter, segment_method_, jtext);
     if (oceanbase::jni::JNIUtils::check_and_handle_exception(env, error_msg)) {
@@ -181,13 +176,6 @@ int KoreanJNIBridge::do_segment(JNIEnv* env, const std::string& text, std::vecto
         set_error(OBP_PLUGIN_ERROR, "Failed to convert Korean segmentation result to C++ vector");
         return ret;
     }
-    
-    std::cout << "=== OCEANBASE JNI RESULT === Korean segmentation result: [";
-    for (size_t i = 0; i < tokens.size(); ++i) {
-        if (i > 0) std::cout << ", ";
-        std::cout << tokens[i];
-    }
-    std::cout << "]" << std::endl;
     
     return OBP_SUCCESS;
 }
@@ -243,7 +231,6 @@ int korean_ftparser_init(ObPluginParamPtr param) {
     
     // Don't initialize JVM here - do it lazily on first use (scan_begin)
     // This avoids issues with classpath when Observer is starting up
-    std::cout << "[INFO] Korean FTParser plugin registered (JVM will be initialized on first use)" << std::endl;
     return OBP_SUCCESS;
 }
 
@@ -252,7 +239,6 @@ int korean_ftparser_deinit(ObPluginParamPtr param) {
         return OBP_INVALID_ARGUMENT;
     }
     
-    std::cout << "[INFO] Korean FTParser deinitialized" << std::endl;
     return OBP_SUCCESS;
 }
 
@@ -265,7 +251,6 @@ int korean_ftparser_scan_begin(ObPluginFTParserParamPtr param) {
     auto& manager = oceanbase::korean_ftparser::KoreanJNIBridgeManager::get_instance();
     int ret = manager.initialize();
     if (ret != OBP_SUCCESS) {
-        std::cout << "[ERROR] Failed to initialize Korean JNI bridge on first use" << std::endl;
         return ret;
     }
     
@@ -295,18 +280,13 @@ int korean_ftparser_scan_begin(ObPluginFTParserParamPtr param) {
     
     ret = bridge->segment(text, kp->tokens);
     if (ret != OBP_SUCCESS) {
-        std::cout << "[ERROR] Korean segmentation failed: " << bridge->get_last_error_message() << std::endl;
         delete kp;
         return ret;
     }
     
-    std::cout << "[INFO][PLUGIN]do_segment (korean_jni_bridge.cpp:XXX) Segmentation completed, got " 
-              << kp->tokens.size() << " tokens" << std::endl;
-    
     // Store parser state
     obp_ftparser_set_user_data(param, kp);
     
-    std::cout << "[INFO] Korean scan begin completed, got " << kp->tokens.size() << " tokens" << std::endl;
     return OBP_SUCCESS;
 }
 

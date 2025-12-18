@@ -278,8 +278,6 @@ JNIEnv* GlobalThreadManager::acquire_jni_env_for_plugin(JavaVM* jvm, const std::
     if (result == JNI_OK) {
         // Thread already attached, increase global reference count
         global_thread_ref_count_[current_thread_id]++;
-        OBP_LOG_INFO("[%s] Thread %p already attached, global ref count: %d", 
-                    plugin_name.c_str(), &current_thread_id, global_thread_ref_count_[current_thread_id]);
         return env;
     } else if (result == JNI_EDETACHED) {
         // Need to attach thread
@@ -287,8 +285,6 @@ JNIEnv* GlobalThreadManager::acquire_jni_env_for_plugin(JavaVM* jvm, const std::
         if (result == JNI_OK) {
             attached_threads_.insert(current_thread_id);
             global_thread_ref_count_[current_thread_id] = 1;
-            OBP_LOG_INFO("[%s] Thread %p attached to JVM, global ref count: 1", 
-                        plugin_name.c_str(), &current_thread_id);
             return env;
         } else {
             OBP_LOG_ERROR("[%s] Failed to attach thread %p to JVM, error: %d", 
@@ -358,7 +354,6 @@ ScopedJNIEnvironment::ScopedJNIEnvironment(const std::string& plugin_name,
         jvm = GlobalJVMManager::get_or_create_jvm(classpath, max_heap_mb, init_heap_mb);
     } else {
         // Use unified configuration from JNIConfigUtils
-        OBP_LOG_INFO("[%s] Creating/getting JVM with unified configuration", plugin_name.c_str());
         jvm = GlobalJVMManager::get_or_create_jvm(
             JNIConfigUtils::get_unified_classpath(),
             JNIConfigUtils::get_unified_max_heap_mb(),
@@ -366,25 +361,20 @@ ScopedJNIEnvironment::ScopedJNIEnvironment(const std::string& plugin_name,
     }
     
     if (jvm) {
-        OBP_LOG_INFO("[%s] Acquiring JNI environment", plugin_name.c_str());
         env_ = GlobalThreadManager::acquire_jni_env_for_plugin(jvm, plugin_name);
         is_valid_ = (env_ != nullptr);
-        OBP_LOG_INFO("[%s] ScopedJNIEnvironment %s", plugin_name.c_str(), is_valid_ ? "SUCCESS" : "FAILED");
     } else {
         OBP_LOG_ERROR("[%s] JVM is null, cannot acquire JNI environment", plugin_name.c_str());
     }
 }
 
 ScopedJNIEnvironment::~ScopedJNIEnvironment() {
-    OBP_LOG_INFO("[%s] ScopedJNIEnvironment destructor called", plugin_name_.c_str());
     if (env_) {
         JavaVM* jvm = GlobalJVMManager::get_jvm();
         if (jvm) {
-            OBP_LOG_INFO("[%s] Releasing JNI environment", plugin_name_.c_str());
             GlobalThreadManager::release_jni_env_for_plugin(jvm, plugin_name_);
         }
     }
-    OBP_LOG_INFO("[%s] ScopedJNIEnvironment destructor completed", plugin_name_.c_str());
 }
 
 jstring JNIUtils::cpp_string_to_jstring(JNIEnv* env, const std::string& str) {
